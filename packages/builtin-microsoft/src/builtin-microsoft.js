@@ -253,6 +253,15 @@ class BuiltinMicrosoft extends Clonable {
               if (other.entity === 'number' && edge.entiy === 'ordinal') {
                 other.discarded = true;
               } else if (
+                other.entity === edge.entity &&
+                other.accuracy === edge.accuracy &&
+                ((!edge.resolution && !other.resolution) ||
+                  (edge.resolution &&
+                    other.resolution &&
+                    edge.resolution.subtype === other.resolution.subtype))
+              ) {
+                other.discarded = true;
+              } else if (
                 other.entity === 'ordinal' &&
                 edge.entity === 'number'
               ) {
@@ -292,11 +301,12 @@ class BuiltinMicrosoft extends Clonable {
     return result;
   }
 
-  findBuiltinEntities(utterance, locale) {
+  findBuiltinEntities(utterance, locale, srcBuiltins) {
     const result = [];
     const source = [];
     const culture = getCulture(locale);
-    this.settings.builtins.forEach((name) => {
+    const builtins = srcBuiltins || this.settings.builtins;
+    builtins.forEach((name) => {
       try {
         const entities =
           name === 'Currency' && locale === 'pt'
@@ -349,7 +359,8 @@ class BuiltinMicrosoft extends Clonable {
     const input = srcInput;
     const entities = this.findBuiltinEntities(
       input.text || input.utterance,
-      input.locale
+      input.locale,
+      input.builtins
     );
     if (!input.edges) {
       input.edges = [];

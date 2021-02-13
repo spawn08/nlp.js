@@ -93,6 +93,12 @@ class JavascriptCompiler {
     if (left === this.failResult) {
       return this.failResult;
     }
+    if (node.operator === '&&' && !left) {
+      return false;
+    }
+    if (node.operator === '||' && left) {
+      return true;
+    }
     const right = await this.walk(node.right, context);
     if (right === this.failResult) {
       return this.failResult;
@@ -162,7 +168,7 @@ class JavascriptCompiler {
         return item;
       }
     }
-    return this.failResult;
+    return undefined;
   }
 
   async walkThis(node, context) {
@@ -170,7 +176,7 @@ class JavascriptCompiler {
       // eslint-disable-next-line
       return context["this"];
     }
-    return this.failResult;
+    return undefined;
   }
 
   async walkCall(node, context) {
@@ -237,7 +243,7 @@ class JavascriptCompiler {
     if (prop === this.failResult) {
       return this.failResult;
     }
-    return obj[prop];
+    return obj ? obj[prop] : undefined;
   }
 
   async walkConditional(node, context) {
@@ -496,6 +502,9 @@ class JavascriptCompiler {
     }
     const prop = await this.walk(node.property, context);
     if (prop === this.failResult) {
+      return this.failResult;
+    }
+    if (!obj) {
       return this.failResult;
     }
     obj[prop] = value;

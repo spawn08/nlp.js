@@ -21,9 +21,8 @@
  * WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-const { Clonable } = require('@nlpjs/core');
+const { Clonable, compareWildcars } = require('@nlpjs/core');
 const { SpellCheck } = require('@nlpjs/similarity');
-const useNoneFeature = require('./none-languages');
 
 class Nlu extends Clonable {
   constructor(settings = {}, container) {
@@ -235,12 +234,7 @@ class Nlu extends Clonable {
 
   addNoneFeature(input) {
     const { corpus } = input;
-    const locale = input.locale || this.settings.locale;
-    if (
-      (input.settings && input.settings.useNoneFeature) ||
-      ((!input.settings || input.settings.useNoneFeature === undefined) &&
-        useNoneFeature[locale])
-    ) {
+    if (input.settings && input.settings.useNoneFeature) {
       corpus.push({ input: { nonefeature: 1 }, output: { None: 1 } });
     }
     return input;
@@ -269,6 +263,9 @@ class Nlu extends Clonable {
           result.push({ intent, score });
         }
       }
+      if (!result.length) {
+        result.push({ intent: 'None', score: 1 });
+      }
       input.classifications = result.sort((a, b) => b.score - a.score);
     }
     return input;
@@ -283,7 +280,24 @@ class Nlu extends Clonable {
     return false;
   }
 
-  intentIsActivated(intent, tokens) {
+  matchAllowList(intent, allowList) {
+    for (let i = 0; i < allowList.length; i += 1) {
+      if (compareWildcars(intent, allowList[i])) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  intentIsActivated(intent, tokens, allowList) {
+    if (allowList) {
+      if (Array.isArray(allowList)) {
+        return this.matchAllowList(intent, allowList);
+      }
+      if (!allowList[intent]) {
+        return false;
+      }
+    }
     const features = this.intentFeatures[intent];
     if (!features) {
       return false;
@@ -300,13 +314,24 @@ class Nlu extends Clonable {
   filterNonActivated(srcInput) {
     if (this.intentFeatures && srcInput.classifications) {
       const intents = srcInput.classifications.map((x) => x.intent);
+      let someModified = false;
       for (let i = 0; i < intents.length; i += 1) {
         const intent = intents[i];
         if (intent !== 'None') {
-          if (!this.intentIsActivated(intent, srcInput.tokens)) {
+          if (
+            !this.intentIsActivated(
+              intent,
+              srcInput.tokens,
+              srcInput.settings.allowList
+            )
+          ) {
             srcInput.classifications[i].score = 0;
+            someModified = true;
           }
         }
+      }
+      if (someModified) {
+        srcInput.classifications.sort((a, b) => b.score - a.score);
       }
     }
     return srcInput;
@@ -333,7 +358,6 @@ class Nlu extends Clonable {
   }
 
   textToFeatures(srcInput) {
-    const locale = srcInput.locale || this.settings.locale;
     const input = srcInput;
     const { tokens } = input;
     const keys = Object.keys(tokens);
@@ -358,13 +382,7 @@ class Nlu extends Clonable {
       nonevalue += nonedelta;
       nonedelta *= this.settings.nonedeltaMultiplier;
     }
-    if (
-      (input.settings ||
-        input.settings.useNoneFeature ||
-        ((input.settings || input.settings.useNoneFeature === undefined) &&
-          useNoneFeature[locale])) &&
-      nonevalue
-    ) {
+    if (input.settings && input.settings.useNoneFeature && nonevalue) {
       features.nonefeature = nonevalue;
     }
     input.tokens = features;

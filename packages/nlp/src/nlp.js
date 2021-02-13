@@ -337,10 +337,7 @@ class Nlp extends Clonable {
       const entityName = keys[i];
       let entity = entities[entityName];
       if (typeof entity === 'string') {
-        entity = { regex: entity };
-      }
-      if (!entity.type) {
-        entity.type = entity.regex ? 'regex' : 'text';
+        entity = { regex: [entity] };
       }
       let finalLocale = entity.locale;
       if (!finalLocale) {
@@ -349,19 +346,36 @@ class Nlp extends Clonable {
       if (typeof finalLocale === 'string') {
         finalLocale = finalLocale.slice(0, 2);
       }
-      if (entity.type === 'text') {
-        const options = entity.options || {};
-        const optionNames = Object.keys(options);
+      if (entity.options) {
+        const optionNames = Object.keys(entity.options);
         for (let j = 0; j < optionNames.length; j += 1) {
           this.addNerRuleOptionTexts(
             finalLocale,
             entityName,
             optionNames[j],
-            options[optionNames[j]]
+            entity.options[optionNames[j]]
           );
         }
-      } else if (entity.type === 'regex') {
-        this.addNerRegexRule(finalLocale, entityName, entity.regex);
+      }
+      if (entity.regex) {
+        if (Array.isArray(entity.regex)) {
+          for (let j = 0; j < entity.regex.length; j += 1) {
+            this.addNerRegexRule(finalLocale, entityName, entity.regex[j]);
+          }
+        } else if (typeof entity.regex === 'string' && entity.regex.trim()) {
+          this.addNerRegexRule(finalLocale, entityName, entity.regex);
+        }
+      }
+      if (entity.trim) {
+        for (let j = 0; j < entity.trim.length; j += 1) {
+          this.addNerPositionCondition(
+            finalLocale,
+            entityName,
+            entity.trim[j].position,
+            entity.trim[j].words,
+            entity.trim[j].opts
+          );
+        }
       }
     }
   }
@@ -530,27 +544,42 @@ class Nlp extends Clonable {
         sourceInput = locale;
       }
     }
-    if (sourceInput) {
+    if (!sourceInput) {
+      if (!utterance) {
+        utterance = locale;
+        locale = undefined;
+      }
+      if (!locale) {
+        locale = this.guessLanguage(utterance);
+      }
+      sourceInput = {
+        locale,
+        utterance,
+        settings,
+      };
+      if (settings) {
+        if (settings.activity && !sourceInput.activity) {
+          sourceInput.activity = settings.activity;
+        }
+        if (settings.conversationId && !sourceInput.activity) {
+          sourceInput.activity = {
+            conversation: {
+              id: settings.conversationId,
+            },
+          };
+        }
+      }
+    } else {
       locale = sourceInput.locale;
       utterance =
         sourceInput.utterance || sourceInput.message || sourceInput.text;
-      if (!context) {
-        context = await this.contextManager.getContext(sourceInput);
-      }
-      context.channel = sourceInput.channel;
-      context.app = sourceInput.app;
-      context.from = sourceInput.from || null;
     }
     if (!context) {
-      context = {};
+      context = await this.contextManager.getContext(sourceInput);
     }
-    if (!utterance) {
-      utterance = locale;
-      locale = undefined;
-    }
-    if (!locale) {
-      locale = this.guessLanguage(utterance);
-    }
+    context.channel = sourceInput.channel;
+    context.app = sourceInput.app;
+    context.from = sourceInput.from || null;
     const input = {
       locale,
       utterance,

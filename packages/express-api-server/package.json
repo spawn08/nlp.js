@@ -1,6 +1,6 @@
 {
   "name": "@nlpjs/express-api-server",
-  "version": "4.14.0",
+  "version": "4.19.8",
   "description": "Express API Server",
   "author": {
     "email": "jesus.seijas@axa.com",
@@ -25,12 +25,12 @@
     "test": "echo \"Error: run tests from root\" && exit 1"
   },
   "dependencies": {
-    "@nlpjs/core": "^4.14.0",
+    "@nlpjs/core": "^4.19.1",
     "cors": "^2.8.5",
     "express": "^4.17.1"
   },
   "devDependencies": {
-    "supertest": "^5.0.0"
+    "supertest": "^6.0.1"
   },
   "gitHead": "2b77e4ff0126eaac349c2cad852036e282323519"
 }

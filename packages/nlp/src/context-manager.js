@@ -55,14 +55,12 @@ class ContextManager extends Clonable {
     if (this.onGetInputContextId) {
       result = await this.onGetInputContextId(input);
     }
-    if (
-      !result &&
-      input &&
-      input.activity &&
-      input.activity.address &&
-      input.activity.address.conversation
-    ) {
-      result = input.activity.address.conversation.id;
+    if (!result && input && input.activity) {
+      if (input.activity.address && input.activity.address.conversation) {
+        result = input.activity.address.conversation.id;
+      } else if (input.activity.conversation) {
+        result = input.activity.conversation.id;
+      }
     }
     return result;
   }
@@ -78,9 +76,7 @@ class ContextManager extends Clonable {
         if (database) {
           result = (await database.findOne(this.settings.tableName, {
             conversationId: id,
-          })) || {
-            id,
-          };
+          })) || { conversationId: id };
         }
       }
       if (!result) {
@@ -94,8 +90,15 @@ class ContextManager extends Clonable {
   }
 
   async setContext(input, context) {
+    const logger = this.container.get('logger');
     const id = await this.getInputContextId(input);
     if (id) {
+      if (!context.id) {
+        const savedContext = await this.getContext(input);
+        if (savedContext) {
+          context.id = savedContext.id;
+        }
+      }
       const keys = Object.keys(context);
       const clone = { conversationId: id };
       for (let i = 0; i < keys.length; i += 1) {
@@ -116,7 +119,28 @@ class ContextManager extends Clonable {
       } else {
         this.contextDictionary[id] = clone;
       }
+      if (this.onCtxUpdate) {
+        logger.debug(`emmitting event onCtxUpdate...`);
+        await this.onCtxUpdate(clone);
+      }
     }
+  }
+
+  async resetConversations() {
+    Object.keys(this.contextDictionary).forEach(async (cid) => {
+      await this.resetConversation(cid);
+    });
+  }
+
+  async resetConversation(cid) {
+    const logger = this.container.get('logger');
+    logger.debug(`reseting context in conversation: ${cid}`);
+    const conversationCtx = this.contextDictionary[cid];
+    Object.keys(conversationCtx).forEach((convCtxKey) => {
+      delete conversationCtx[convCtxKey];
+    });
+    this.contextDictionary[cid].dialogStack = [];
+    this.contextDictionary[cid].variableName = undefined;
   }
 }
 
